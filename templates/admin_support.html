@@ -473,8 +473,11 @@
             adminWs.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 if (data.type === 'message') {
-                    addAdminMessage(data.sender, data.message, data.created_at);
-                    // Play sound on new client message
+                    // Don't duplicate admin's own messages (added locally in sendAdminMsg)
+                    if (data.sender !== 'admin') {
+                        addAdminMessage(data.sender, data.message, data.created_at);
+                    }
+                    // Play sound and update sessions on new client message
                     if (data.sender === 'client') {
                         playNotifySound();
                         loadChatSessions();
@@ -504,6 +507,7 @@
             const text = input.value.trim();
             if (!text || !adminWs || adminWs.readyState !== WebSocket.OPEN) return;
             adminWs.send(JSON.stringify({ message: text }));
+            addAdminMessage('admin', text);
             input.value = '';
         }
 
