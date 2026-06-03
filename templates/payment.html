@@ -1498,26 +1498,30 @@
         setTimeout(initTradingView, 500);
 
         // Chat widget
-        let widgetSessionId = null, widgetWs = null;
+        let widgetSessionId = null, widgetWs = null, widgetPollTimer = null;
 
-        function toggleChat() {
-            const w = document.getElementById('chatWidget');
-            const b = document.getElementById('chatBubble');
-            const open = w.classList.toggle('open');
-            b.style.display = open ? 'none' : 'flex';
-            if (!open && widgetWs) { widgetWs.close(); widgetWs = null; }
+        async function loadWidgetMessages(sessionId) {
+            try {
+                const r = await fetch(`/api/chat/poll/${sessionId}?since_id=0`);
+                const msgs = await r.json();
+                document.getElementById('chatWidgetMsgs').innerHTML = '';
+                msgs.forEach(m => {
+                    addWidgetMsg(m.sender, m.message, m.created_at);
+                });
+            } catch(e) {}
         }
-
-        let widgetPollTimer = null;
 
         function startWidgetPoll(sessionId) {
             let lastId = 0;
             if (widgetPollTimer) clearInterval(widgetPollTimer);
+            // Get last displayed message ID from the DOM
+            const msgs = document.querySelectorAll('#chatWidgetMsgs .chat-widget-msg');
+            lastId = msgs.length;
             widgetPollTimer = setInterval(async () => {
                 try {
                     const r = await fetch(`/api/chat/poll/${sessionId}?since_id=${lastId}`);
-                    const msgs = await r.json();
-                    msgs.forEach(m => {
+                    const data = await r.json();
+                    data.forEach(m => {
                         if (m.sender !== 'client') {
                             addWidgetMsg(m.sender, m.message, m.created_at);
                             playNotifySound();
@@ -1525,7 +1529,18 @@
                         if (m.id > lastId) lastId = m.id;
                     });
                 } catch(e) {}
-            }, 3000);
+            }, 2000);
+        }
+
+        function toggleChat() {
+            const w = document.getElementById('chatWidget');
+            const b = document.getElementById('chatBubble');
+            const open = w.classList.toggle('open');
+            b.style.display = open ? 'none' : 'flex';
+            if (!open) {
+                if (widgetWs) { widgetWs.close(); widgetWs = null; }
+                if (widgetPollTimer) { clearInterval(widgetPollTimer); widgetPollTimer = null; }
+            }
         }
 
         async function startChat() {
@@ -1536,21 +1551,26 @@
                 if (!resp.ok) { document.getElementById('chatWidgetStart').innerHTML = '<p style="color:#ef4444;">Ошибка сервера</p>'; return; }
                 const data = await resp.json();
                 widgetSessionId = data.session_id;
-                document.getElementById('chatWidgetMsgs').innerHTML = '';
-                document.getElementById('chatWidgetInput').style.display = 'flex';
                 document.getElementById('chatWidgetStart').innerHTML = '';
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const host = window.location.host || 'localhost:8000';
-                widgetWs = new WebSocket(`${protocol}//${host}/ws/chat/${widgetSessionId}`);
-                widgetWs.onmessage = (e) => {
-                    const d = JSON.parse(e.data);
-                    if (d.type === 'message' && d.sender !== 'client') {
-                        addWidgetMsg(d.sender, d.message, d.created_at);
-                        playNotifySound();
-                    } else if (d.type === 'closed') { addWidgetMsg('admin', '⚠️ Чат закрыт'); document.getElementById('chatWidgetInput').style.display = 'none'; }
-                };
-                widgetWs.onerror = () => {};
+                document.getElementById('chatWidgetInput').style.display = 'flex';
+                // Load all existing messages
+                await loadWidgetMessages(widgetSessionId);
+                // Start HTTP polling for new messages
                 startWidgetPoll(widgetSessionId);
+                // Try WebSocket for real-time (optional, fail silently)
+                try {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const host = window.location.host || 'localhost:8000';
+                    widgetWs = new WebSocket(`${protocol}//${host}/ws/chat/${widgetSessionId}`);
+                    widgetWs.onmessage = (e) => {
+                        const d = JSON.parse(e.data);
+                        if (d.type === 'message' && d.sender !== 'client') {
+                            addWidgetMsg(d.sender, d.message, d.created_at);
+                            playNotifySound();
+                        } else if (d.type === 'closed') { addWidgetMsg('admin', '⚠️ Чат закрыт'); document.getElementById('chatWidgetInput').style.display = 'none'; }
+                    };
+                    widgetWs.onerror = () => {};
+                } catch(e) {}
                 if (phantomPublicKey) setTimeout(updateChatWalletInfo, 500);
             } catch (e) { document.getElementById('chatWidgetStart').innerHTML = '<p style="color:#ef4444;">Ошибка подключения</p>'; }
         }

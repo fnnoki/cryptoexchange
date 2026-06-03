@@ -80,6 +80,7 @@
         .chat-card .cc-status.closed { background: #333; color: #888; }
         .chat-card .cc-preview { color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .chat-card .cc-ip { color: #888; font-size: 11px; margin-top: 2px; }
+        .flag-icon { width: 18px; height: auto; vertical-align: middle; border-radius: 2px; margin-right: 4px; }
         .chat-card .cc-time { color: #555; font-size: 11px; margin-top: 5px; }
         .chat-card .cc-unread {
             display: inline-block; background: #ef4444; color: #fff; font-size: 11px;
@@ -266,13 +267,12 @@
             } catch (e) { console.error('Chat sessions error:', e); }
         }
 
-        function getFlagEmoji(code) {
-            if (!code || code.length !== 2) return code || '';
-            try {
-                return String.fromCodePoint(...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
-            } catch(e) { return code; }
+        const countryNames = {"AD":"Andorra","AE":"ОАЭ","AF":"Афганистан","AG":"Антигуа и Барбуда","AI":"Ангилья","AL":"Албания","AM":"Армения","AO":"Ангола","AR":"Аргентина","AS":"Американское Самоа","AT":"Австрия","AU":"Австралия","AW":"Аруба","AX":"Аландские о-ва","AZ":"Азербайджан","BA":"Босния и Герцеговина","BB":"Барбадос","BD":"Бангладеш","BE":"Бельгия","BF":"Буркина-Фасо","BG":"Болгария","BH":"Бахрейн","BI":"Бурунди","BJ":"Бенин","BL":"Сен-Бартелеми","BM":"Бермуды","BN":"Бруней","BO":"Боливия","BQ":"Бонайре","BR":"Бразилия","BS":"Багамы","BT":"Бутан","BW":"Ботсвана","BY":"Беларусь","BZ":"Белиз","CA":"Канада","CC":"Кокосовые о-ва","CD":"Конго (ДРК)","CF":"ЦАР","CG":"Конго","CH":"Швейцария","CI":"Кот-д'Ивуар","CK":"Острова Кука","CL":"Чили","CM":"Камерун","CN":"Китай","CO":"Колумбия","CR":"Коста-Рика","CU":"Куба","CV":"Кабо-Верде","CW":"Кюрасао","CX":"Остров Рождества","CY":"Кипр","CZ":"Чехия","DE":"Германия","DJ":"Джибути","DK":"Дания","DM":"Доминика","DO":"Доминиканская Республика","DZ":"Алжир","EC":"Эквадор","EE":"Эстония","EG":"Египет","EH":"Западная Сахара","ER":"Эритрея","ES":"Испания","ET":"Эфиопия","FI":"Финляндия","FJ":"Фиджи","FK":"Фолклендские о-ва","FM":"Микронезия","FO":"Фарерские о-ва","FR":"Франция","GA":"Габон","GB":"Великобритания","GD":"Гренада","GE":"Грузия","GF":"Французская Гвиана","GG":"Гернси","GH":"Гана","GI":"Гибралтар","GL":"Гренландия","GM":"Гамбия","GN":"Гвинея","GP":"Гваделупа","GQ":"Экваториальная Гвинея","GR":"Греция","GT":"Гватемала","GU":"Гуам","GW":"Гвинея-Бисау","GY":"Гайана","HK":"Гонконг","HN":"Гондурас","HR":"Хорватия","HT":"Гаити","HU":"Венгрия","ID":"Индонезия","IE":"Ирландия","IL":"Израиль","IM":"Остров Мэн","IN":"Индия","IO":"Британская территория в Индийском океане","IQ":"Ирак","IR":"Иран","IS":"Исландия","IT":"Италия","JE":"Джерси","JM":"Ямайка","JO":"Иордания","JP":"Япония","KE":"Кения","KG":"Кыргызстан","KH":"Камбоджа","KI":"Кирибати","KM":"Коморы","KN":"Сент-Китс и Невис","KP":"Северная Корея","KR":"Южная Корея","KW":"Кувейт","KY":"Каймановы о-ва","KZ":"Казахстан","LA":"Лаос","LB":"Ливан","LC":"Сент-Люсия","LI":"Лихтенштейн","LK":"Шри-Ланка","LR":"Либерия","LS":"Лесото","LT":"Литва","LU":"Люксембург","LV":"Латвия","LY":"Ливия","MA":"Марокко","MC":"Монако","MD":"Молдова","ME":"Черногория","MF":"Сен-Мартен","MG":"Мадагаскар","MH":"Маршалловы о-ва","MK":"Северная Македония","ML":"Мали","MM":"Мьянма","MN":"Монголия","MO":"Макао","MP":"Северные Марианские о-ва","MQ":"Мартиника","MR":"Мавритания","MS":"Монтсеррат","MT":"Мальта","MU":"Маврикий","MV":"Мальдивы","MW":"Малави","MX":"Мексика","MY":"Малайзия","MZ":"Мозамбик","NA":"Намибия","NC":"Новая Каледония","NE":"Нигер","NF":"Норфолк","NG":"Нигерия","NI":"Никарагуа","NL":"Нидерланды","NO":"Норвегия","NP":"Непал","NR":"Науру","NU":"Ниуэ","NZ":"Новая Зеландия","OM":"Оман","PA":"Панама","PE":"Перу","PF":"Французская Полинезия","PG":"Папуа — Новая Гвинея","PH":"Филиппины","PK":"Пакистан","PL":"Польша","PM":"Сен-Пьер и Микелон","PR":"Пуэрто-Рико","PS":"Палестина","PT":"Португалия","PW":"Палау","PY":"Парагвай","QA":"Катар","RE":"Реюньон","RO":"Румыния","RS":"Сербия","RU":"Россия","RW":"Руанда","SA":"Саудовская Аравия","SB":"Соломоновы о-ва","SC":"Сейшелы","SD":"Судан","SE":"Швеция","SG":"Сингапур","SH":"Остров Святой Елены","SI":"Словения","SK":"Словакия","SL":"Сьерра-Леоне","SM":"Сан-Марино","SN":"Сенегал","SO":"Сомали","SR":"Суринам","SS":"Южный Судан","ST":"Сан-Томе и Принсипи","SV":"Сальвадор","SX":"Синт-Мартен","SY":"Сирия","SZ":"Эсватини","TC":"Тёркс и Кайкос","TD":"Чад","TG":"Того","TH":"Таиланд","TJ":"Таджикистан","TK":"Токелау","TL":"Восточный Тимор","TM":"Туркменистан","TN":"Тунис","TO":"Тонга","TR":"Турция","TT":"Тринидад и Тобаго","TV":"Тувалу","TW":"Тайвань","TZ":"Танзания","UA":"Украина","UG":"Уганда","US":"США","UY":"Уругвай","UZ":"Узбекистан","VA":"Ватикан","VC":"Сент-Винсент и Гренадины","VE":"Венесуэла","VG":"Британские Виргинские о-ва","VI":"Американские Виргинские о-ва","VN":"Вьетнам","VU":"Вануату","WF":"Уоллис и Футуна","WS":"Самоа","XK":"Косово","YE":"Йемен","YT":"Майотта","ZA":"ЮАР","ZM":"Замбия","ZW":"Зимбабве"};
+        function flagDisplay(code) {
+            if (!code || code.length !== 2) return '';
+            const name = countryNames[code.toUpperCase()] || code.toUpperCase();
+            return `<img src="/static/flags/${code.toLowerCase()}.png" class="flag-icon" alt="${code}"> ${name}`;
         }
-        function flagDisplay(code) { const f = getFlagEmoji(code); return f + ' ' + code; }
 
         let notifyAudioCtx = null;
 
@@ -324,7 +324,8 @@
             sessions.forEach(s => {
                 const isActive = s.status === 'active';
                 const time = new Date(s.last_message_time || s.created_at).toLocaleString('ru-RU');
-                const ipInfo = s.ip_address ? (flagDisplay(s.country_code) + ' — ' + s.ip_address) : '';
+                const flag = flagDisplay(s.country_code);
+                const ipInfo = s.ip_address ? (flag ? flag + ' — ' : '') + s.ip_address : '';
                 html += `
                     <div class="chat-card ${isActive ? 'active' : 'closed'}" onclick="openChatPanel(${s.id}, '${s.client_name}')">
                         <div class="cc-header">
@@ -435,7 +436,9 @@
                 .then(sessions => {
                     const s = sessions.find(x => x.id === sessionId);
                     if (s && s.ip_address) {
-                        document.getElementById('chatPanelSub').textContent = 'Session #' + sessionId + ' — ' + flagDisplay(s.country_code) + ' — ' + s.ip_address;
+                        const flag = flagDisplay(s.country_code);
+                        const ipInfo = flag ? flag + ' — ' + s.ip_address : s.ip_address;
+                        document.getElementById('chatPanelSub').innerHTML = 'Session #' + sessionId + ' — ' + ipInfo;
                     }
                     // Mark as read
                     fetch('/api/chat/read/' + sessionId, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + checkAuth() } }).catch(()=>{});
@@ -507,7 +510,9 @@
                         loadChatSessions();
                         const subEl = document.getElementById('chatPanelSub');
                         if (data.ip_address) {
-                            subEl.textContent = 'Session #' + sessionId + ' — ' + flagDisplay(data.country_code) + ' — ' + data.ip_address;
+                            const flag = flagDisplay(data.country_code);
+                            const ipInfo = flag ? flag + ' — ' + data.ip_address : data.ip_address;
+                            subEl.innerHTML = 'Session #' + sessionId + ' — ' + ipInfo;
                         }
                     }
                 } else if (data.type === 'closed') {
