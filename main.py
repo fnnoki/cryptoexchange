@@ -810,12 +810,32 @@ async def create_order(order: OrderCreate, db: Session = Depends(get_db)):
         if not usdt_fiat:
             raise ValueError(f"No rate for {cur}")
 
-        # 2. For coins, get USDT price via shared function
-        if order.asset_type in {"SOL", "ETH", "ARB", "BNB"}:
-            coin_usdt = fetch_coin_usdt(order.asset_type)
+        # 2. For coins, get USDT price from Binance
+        usdt_priced_assets = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
+        if order.asset_type in usdt_priced_assets:
+            coin_usdt = None
+            symbol = usdt_priced_assets[order.asset_type]
+            try:
+                resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', timeout=5)
+                data = resp.json()
+                if 'price' in data:
+                    coin_usdt = float(data['price'])
+            except Exception:
+                logger.warning(f"Binance {symbol} failed in create_order")
+
+            if not coin_usdt:
+                try:
+                    resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=5)
+                    data = resp.json()
+                    if data.get('retCode') == 0:
+                        coin_usdt = float(data['result']['list'][0]['lastPrice'])
+                except Exception:
+                    logger.warning(f"Bybit {symbol} also failed in create_order")
+
             if not coin_usdt:
                 hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
                 coin_usdt = hardcoded_prices.get(order.asset_type)
+
             if coin_usdt:
                 rate = round(coin_usdt * usdt_fiat, 6)
         else:
@@ -874,66 +894,6 @@ async def get_currencies():
         "banks": CURRENCY_BANKS_CONFIG
     }
 
-def fetch_coin_usdt(asset: str):
-    """Get coin price in USDT — tries multiple public APIs (no key needed).
-    Uses shared cache. Returns float or None."""
-    cache_key = f"coin_usdt:{asset}"
-    cached = _cache.get(cache_key)
-    if cached and time.time() - cached["ts"] < 20:
-        return cached["val"]
-    symbols = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
-    symbol = symbols.get(asset)
-    if not symbol:
-        return None
-    coin_usdt = None
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    known = {"SOLUSDT": "SOL_USDT", "ETHUSDT": "ETH_USDT", "ARBUSDT": "ARB_USDT", "BNBUSDT": "BNB_USDT"}
-    gate_pair = known.get(symbol, symbol[:3] + "_" + symbol[3:])
-
-    def _safe(fn):
-        try:
-            return fn()
-        except Exception:
-            return None
-
-    def _get(data, *keys):
-        for k in keys:
-            if isinstance(data, dict) and k in data and data[k] is not None:
-                data = data[k]
-            else:
-                return None
-        return data
-
-    apis = [
-        (f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}',
-         lambda d: _safe(lambda: float(_get(d, 'result', 'list', 0, 'lastPrice'))) if d.get('retCode') == 0 else None),
-        (f'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={symbol}',
-         lambda d: _safe(lambda: float(_get(d, 'data', 'price'))) if d.get('code') == '200000' else None),
-        (f'https://api.mexc.com/api/v3/ticker/price?symbol={symbol}',
-         lambda d: _safe(lambda: float(_get(d, 'price')))),
-        (f'https://api.gateio.ws/api/v4/spot/tickers?currency_pair={gate_pair}',
-         lambda d: _safe(lambda: float(_get(d[0], 'last'))) if isinstance(d, list) and len(d) > 0 else None),
-        (f'https://www.okx.com/api/v5/market/ticker?instId={symbol}',
-         lambda d: _safe(lambda: float(_get(d, 'data', 0, 'last'))) if d.get('code') == '0' else None),
-        (f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}',
-         lambda d: _safe(lambda: float(_get(d, 'price')))),
-    ]
-    for i, (url, parser) in enumerate(apis):
-        try:
-            resp = requests.get(url, headers=headers, timeout=8)
-            resp.raise_for_status()
-            data = resp.json()
-            price = parser(data)
-            if price and price > 0:
-                coin_usdt = price
-                break
-        except Exception as e:
-            logger.warning(f"API {i} ({url.split('/')[2]}) for {symbol}: {e}")
-            continue
-    if coin_usdt:
-        _cache[cache_key] = {"val": coin_usdt, "ts": time.time()}
-    return coin_usdt
-
 @app.get("/api/rate")
 async def get_usdt_rate(currency: str = "RUB", asset: str = "USDT"):
     cache_key = f"rate:{currency}:{asset}"
@@ -978,8 +938,31 @@ async def get_usdt_rate(currency: str = "RUB", asset: str = "USDT"):
             _cache[cache_key] = {"val": result, "ts": time.time()}
             return result
 
-        # 3. For coins — get USDT price via shared function
-        coin_usdt = fetch_coin_usdt(asset_upper)
+        # 3. For coins — get USDT price from Binance spot
+        usdt_priced_assets = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
+        coin_usdt = None
+        symbol = usdt_priced_assets.get(asset_upper)
+        if not symbol:
+            result = {"error": f"Неизвестный актив {asset_upper}"}
+            _cache[cache_key] = {"val": result, "ts": time.time()}
+            return result
+
+        try:
+            resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', timeout=5)
+            data = resp.json()
+            if 'price' in data:
+                coin_usdt = float(data['price'])
+        except Exception:
+            logger.warning(f"Binance {symbol} failed")
+
+        if not coin_usdt:
+            try:
+                resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=5)
+                data = resp.json()
+                if data.get('retCode') == 0:
+                    coin_usdt = float(data['result']['list'][0]['lastPrice'])
+            except Exception:
+                logger.warning(f"Bybit {symbol} also failed")
 
         if not coin_usdt:
             hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
@@ -989,7 +972,7 @@ async def get_usdt_rate(currency: str = "RUB", asset: str = "USDT"):
         rate = round(coin_usdt * usdt_fiat, 6)
         buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
         sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-        result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": asset_upper, "source": "Bybit+Rapira"}
+        result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": asset_upper, "source": "Binance+Rapira"}
 
         _cache[cache_key] = {"val": result, "ts": time.time()}
         return result
@@ -1006,20 +989,51 @@ async def get_asset_price(asset: str = "SOL"):
     if cached and time.time() - cached["ts"] < 20:
         return cached["val"]
     try:
+        symbol_map = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
+        price = None
         asset_upper = asset.upper()
+
+        # For USDT, return Tether's USDT/USD rate (≈1)
         if asset_upper == "USDT":
-            result = {"asset": "USDT", "price": "1.0", "symbol": "USDTUSD"}
+            try:
+                r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=usd", timeout=5)
+                d = r.json()
+                price = d.get("tether", {}).get("usd", 1.0)
+            except Exception:
+                price = 1.0
+            result = {"asset": "USDT", "price": str(price), "symbol": "USDTUSD"}
             _cache[cache_key] = {"val": result, "ts": time.time()}
             return result
 
-        price = fetch_coin_usdt(asset_upper)
+        symbol = symbol_map.get(asset_upper)
+        if not symbol:
+            return {"asset": asset_upper, "price": None, "error": "Unknown asset"}
+
+        # Try Binance
+        try:
+            r = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}", timeout=5)
+            d = r.json()
+            if "price" in d:
+                price = float(d["price"])
+        except Exception:
+            pass
+
+        # Fallback Bybit
+        if not price:
+            try:
+                r = requests.get(f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}", timeout=5)
+                d = r.json()
+                if d.get("retCode") == 0:
+                    price = float(d["result"]["list"][0]["lastPrice"])
+            except Exception:
+                pass
+
         if not price:
             hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
             price = hardcoded_prices.get(asset_upper)
 
-        symbols = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
         if price:
-            result = {"asset": asset_upper, "price": str(price), "symbol": symbols.get(asset_upper, "")}
+            result = {"asset": asset_upper, "price": str(price), "symbol": symbol}
         else:
             result = {"asset": asset_upper, "price": None, "error": "Price unavailable"}
         _cache[cache_key] = {"val": result, "ts": time.time()}
