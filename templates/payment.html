@@ -1070,6 +1070,7 @@
                 }
                 const resp = await provider.connect();
                 phantomPublicKey = resp.publicKey.toString();
+                localStorage.setItem('phantom_wallet', phantomPublicKey);
                 panel.classList.remove('open');
                 document.getElementById('walletConnectBtn').style.display = 'none';
                 document.getElementById('walletHeaderInfo').style.display = 'flex';
@@ -1110,6 +1111,7 @@
                 }
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 metamaskAccount = accounts[0];
+                localStorage.setItem('metamask_wallet', metamaskAccount);
                 metamaskProvider = new ethers.BrowserProvider(window.ethereum);
 
                 panel.classList.remove('open');
@@ -1187,6 +1189,8 @@
         }
 
         async function disconnectWallet() {
+            localStorage.removeItem('phantom_wallet');
+            localStorage.removeItem('metamask_wallet');
             // Disconnect Phantom
             try {
                 const provider = getPhantomProvider();
@@ -1734,6 +1738,31 @@
             // Re-draw on theme change
             const origToggle = toggleTheme;
             toggleTheme = function() { origToggle(); setTimeout(draw, 50); };
+        })();
+
+        // Restore wallet from localStorage on page load
+        (function initWallet() {
+            const pw = localStorage.getItem('phantom_wallet');
+            if (pw) {
+                phantomPublicKey = pw;
+                document.getElementById('walletConnectBtn').style.display = 'none';
+                document.getElementById('walletHeaderInfo').style.display = 'flex';
+                document.getElementById('walletNickname').textContent = pw.slice(0,4)+'..'+pw.slice(-4);
+                document.getElementById('walletHeaderBalance').textContent = '—';
+                // Try silent reconnect (works if site is trusted)
+                const p = getPhantomProvider();
+                if (p) p.connect({ onlyIfTrusted: true }).then(() => { updateSolBalance(); updateUsdtBalance(); updateNetworkStatus('sol', true); updateChatWalletInfo(); }).catch(() => {});
+            }
+            const mw = localStorage.getItem('metamask_wallet');
+            if (mw && !pw) {
+                metamaskAccount = mw;
+                document.getElementById('walletConnectBtn').style.display = 'none';
+                document.getElementById('walletHeaderInfo').style.display = 'flex';
+                document.getElementById('walletNickname').textContent = mw.slice(0,6)+'...'+mw.slice(-4);
+                document.getElementById('walletHeaderBalance').textContent = '—';
+                // Silent reconnect for MetaMask
+                if (window.ethereum) window.ethereum.request({ method: 'eth_accounts' }).then(accts => { if (accts.length) { metamaskAccount = accts[0]; updateEthBalance(); updateArbBalance(); updateBnbBalance(); updateNetworkStatus('eth', true); updateNetworkStatus('arb', true); updateNetworkStatus('bnb', true); updateChatWalletInfo(); } }).catch(() => {});
+            }
         })();
     </script>
 </body>
