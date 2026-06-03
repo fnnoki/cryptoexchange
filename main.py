@@ -875,33 +875,33 @@ async def get_currencies():
     }
 
 def fetch_coin_usdt(asset: str):
-    """Get coin price in USDT from Binance (primary) or Bybit (fallback).
+    """Get coin price in USDT from Bybit (primary) or Binance (fallback).
     Uses shared cache. Returns float or None."""
     cache_key = f"coin_usdt:{asset}"
     cached = _cache.get(cache_key)
     if cached and time.time() - cached["ts"] < 20:
         return cached["val"]
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     symbols = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
     symbol = symbols.get(asset)
     if not symbol:
         return None
     coin_usdt = None
     try:
-        resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', headers=headers, timeout=10)
+        resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=10)
         data = resp.json()
-        if 'price' in data:
-            coin_usdt = float(data['price'])
+        if data.get('retCode') == 0:
+            coin_usdt = float(data['result']['list'][0]['lastPrice'])
     except Exception as e:
-        logger.warning(f"Binance {symbol} failed: {e}")
+        logger.warning(f"Bybit {symbol} failed: {e}")
     if not coin_usdt:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         try:
-            resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=10)
+            resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', headers=headers, timeout=10)
             data = resp.json()
-            if data.get('retCode') == 0:
-                coin_usdt = float(data['result']['list'][0]['lastPrice'])
+            if 'price' in data:
+                coin_usdt = float(data['price'])
         except Exception as e:
-            logger.warning(f"Bybit {symbol} also failed: {e}")
+            logger.warning(f"Binance {symbol} also failed: {e}")
     if coin_usdt:
         _cache[cache_key] = {"val": coin_usdt, "ts": time.time()}
     return coin_usdt
@@ -961,7 +961,7 @@ async def get_usdt_rate(currency: str = "RUB", asset: str = "USDT"):
         rate = round(coin_usdt * usdt_fiat, 6)
         buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
         sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-        result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": asset_upper, "source": "Binance+Rapira"}
+        result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": asset_upper, "source": "Bybit+Rapira"}
 
         _cache[cache_key] = {"val": result, "ts": time.time()}
         return result
