@@ -784,55 +784,62 @@ async def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     amount_rub = None
     commission_amount = 0.0
     try:
-        currency_lower = order.currency.lower()
-        currency_map = {'rub': 'rub', 'usd': 'usd', 'eur': 'eur', 'gbp': 'gbp', 'kzt': 'kzt'}
-        cg_currency = currency_map.get(currency_lower, currency_lower)
+        cur = order.currency.upper()
 
+        # 1. Get USDT/fiat rate
+        usdt_fiat = None
+        if cur == "RUB":
+            try:
+                r = requests.get('https://api.rapira.net/open/market/rates_xml', headers={'Accept': 'application/xml'}, timeout=5)
+                r.raise_for_status()
+                root = ET.fromstring(r.content)
+                for item in root.findall('item'):
+                    fr = item.findtext('from')
+                    to = item.findtext('to')
+                    out = item.findtext('out')
+                    if fr == 'USDT' and to == 'RUB' and out:
+                        usdt_fiat = float(out)
+                        break
+            except Exception:
+                logger.warning("Rapira failed in create_order")
+
+        if not usdt_fiat:
+            hardcoded_fiat = {'RUB': 75.0, 'USD': 1.0, 'EUR': 0.92, 'GBP': 0.79, 'KZT': 450.0}
+            usdt_fiat = hardcoded_fiat.get(cur)
+
+        if not usdt_fiat:
+            raise ValueError(f"No rate for {cur}")
+
+        # 2. For coins, get USDT price from Binance
         usdt_priced_assets = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
         if order.asset_type in usdt_priced_assets:
             coin_usdt = None
-            # Try Binance
+            symbol = usdt_priced_assets[order.asset_type]
             try:
-                binance_symbol = usdt_priced_assets[order.asset_type]
-                binance_url = f'https://api.binance.com/api/v3/ticker/price?symbol={binance_symbol}'
-                binance_resp = requests.get(binance_url, timeout=10)
-                binance_data = binance_resp.json()
-                if 'price' in binance_data:
-                    coin_usdt = float(binance_data['price'])
+                resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', timeout=5)
+                data = resp.json()
+                if 'price' in data:
+                    coin_usdt = float(data['price'])
             except Exception:
-                logger.warning(f"Binance {order.asset_type} price failed in create_order")
-            # Fallback Bybit
+                logger.warning(f"Binance {symbol} failed in create_order")
+
             if not coin_usdt:
                 try:
-                    bybit_symbol = usdt_priced_assets[order.asset_type]
-                    bybit_url = f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={bybit_symbol}'
-                    bybit_resp = requests.get(bybit_url, timeout=10)
-                    bybit_data = bybit_resp.json()
-                    if bybit_data.get('retCode') == 0:
-                        coin_usdt = float(bybit_data['result']['list'][0]['lastPrice'])
+                    resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=5)
+                    data = resp.json()
+                    if data.get('retCode') == 0:
+                        coin_usdt = float(data['result']['list'][0]['lastPrice'])
                 except Exception:
-                    logger.warning(f"Bybit {order.asset_type} also failed")
+                    logger.warning(f"Bybit {symbol} also failed in create_order")
+
+            if not coin_usdt:
+                hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
+                coin_usdt = hardcoded_prices.get(order.asset_type)
+
             if coin_usdt:
-                usdt_rate = None
-                try:
-                    usdt_url = f'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies={cg_currency}'
-                    usdt_resp = requests.get(usdt_url, timeout=10)
-                    usdt_data = usdt_resp.json()
-                    if 'tether' in usdt_data and cg_currency in usdt_data['tether']:
-                        usdt_rate = usdt_data['tether'][cg_currency]
-                except Exception:
-                    logger.warning("CoinGecko USDT rate failed in create_order")
-                if not usdt_rate:
-                    hardcoded_fiat = {'RUB': 75.0, 'USD': 1.0, 'EUR': 0.92, 'GBP': 0.79, 'KZT': 450.0}
-                    usdt_rate = hardcoded_fiat.get(order.currency.upper())
-                if usdt_rate:
-                    rate = round(coin_usdt * usdt_rate, 6)
+                rate = round(coin_usdt * usdt_fiat, 6)
         else:
-            url = f'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies={cg_currency}'
-            response = requests.get(url, timeout=5)
-            data = response.json()
-            if 'tether' in data and cg_currency in data['tether']:
-                rate = data['tether'][cg_currency]
+            rate = usdt_fiat
     except Exception as e:
         logger.warning(f"Could not fetch rate: {e}")
 
@@ -894,155 +901,78 @@ async def get_usdt_rate(currency: str = "RUB", asset: str = "USDT"):
     if cached and time.time() - cached["ts"] < 15:
         return cached["val"]
     try:
-        currency_lower = currency.lower()
-        currency_map = {
-            'rub': 'rub', 'usd': 'usd', 'eur': 'eur',
-            'gbp': 'gbp', 'kzt': 'kzt'
-        }
-        cg_currency = currency_map.get(currency_lower, currency_lower)
         asset_upper = asset.upper()
+        cur = currency.upper()
 
-        # First get USDT/fiat rate from CoinGecko
+        # 1. Get USDT/fiat rate — Rapira for RUB, hardcoded for others
         usdt_fiat = None
-        try:
-            usdt_url = f'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies={cg_currency}'
-            usdt_resp = requests.get(usdt_url, timeout=5)
-            usdt_data = usdt_resp.json()
-            if 'tether' in usdt_data and cg_currency in usdt_data['tether']:
-                usdt_fiat = usdt_data['tether'][cg_currency]
-        except Exception:
-            logger.warning("CoinGecko USDT rate failed")
-
-        # Fallback fiat rate if CoinGecko failed
-        if not usdt_fiat:
-            hardcoded_fiat = {
-                'RUB': 75.0, 'USD': 1.0, 'EUR': 0.92,
-                'GBP': 0.79, 'KZT': 450.0
-            }
-            usdt_fiat = hardcoded_fiat.get(currency.upper())
-            if usdt_fiat:
-                logger.info(f"Using hardcoded fiat rate: 1 USDT = {usdt_fiat} {currency.upper()}")
-
-        # Assets that need USDT price from exchange
-        usdt_priced_assets = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
-
-        result = None
-        if asset_upper in usdt_priced_assets:
-            coin_usdt = None
-            # Try Binance first
+        if cur == "RUB":
             try:
-                binance_symbol = usdt_priced_assets[asset_upper]
-                binance_url = f'https://api.binance.com/api/v3/ticker/price?symbol={binance_symbol}'
-                binance_resp = requests.get(binance_url, timeout=5)
-                binance_data = binance_resp.json()
-                if 'price' in binance_data:
-                    coin_usdt = float(binance_data['price'])
+                r = requests.get('https://api.rapira.net/open/market/rates_xml', headers={'Accept': 'application/xml'}, timeout=5)
+                r.raise_for_status()
+                root = ET.fromstring(r.content)
+                for item in root.findall('item'):
+                    fr = item.findtext('from')
+                    to = item.findtext('to')
+                    out = item.findtext('out')
+                    if fr == 'USDT' and to == 'RUB' and out:
+                        usdt_fiat = float(out)
+                        break
             except Exception:
-                logger.warning(f"Binance {asset_upper} failed, trying Bybit")
+                logger.warning("Rapira failed")
+        if not usdt_fiat:
+            hardcoded_fiat = {'RUB': 75.0, 'USD': 1.0, 'EUR': 0.92, 'GBP': 0.79, 'KZT': 450.0}
+            usdt_fiat = hardcoded_fiat.get(cur)
 
-            # Fallback to Bybit
-            if not coin_usdt:
-                try:
-                    bybit_symbol = usdt_priced_assets[asset_upper]
-                    bybit_url = f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={bybit_symbol}'
-                    bybit_resp = requests.get(bybit_url, timeout=5)
-                    bybit_data = bybit_resp.json()
-                    if bybit_data.get('retCode') == 0:
-                        coin_usdt = float(bybit_data['result']['list'][0]['lastPrice'])
-                except Exception:
-                    logger.warning(f"Bybit {asset_upper} also failed")
+        if not usdt_fiat:
+            result = {"error": f"Не удалось получить курс для {cur}"}
+            _cache[cache_key] = {"val": result, "ts": time.time()}
+            return result
 
-            # Hardcoded coin price fallback
-            if not coin_usdt:
-                hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
-                coin_usdt = hardcoded_prices.get(asset_upper)
-                if coin_usdt:
-                    logger.info(f"Using hardcoded price for {asset_upper}: ${coin_usdt}")
+        # 2. For USDT — just return fiat rate
+        if asset_upper == "USDT":
+            rate = usdt_fiat
+            buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
+            sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
+            result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": "USDT", "source": "Rapira" if cur == "RUB" else "fallback"}
+            _cache[cache_key] = {"val": result, "ts": time.time()}
+            return result
 
-            if coin_usdt and coin_usdt > 0 and usdt_fiat:
-                rate = round(coin_usdt * usdt_fiat, 6)
-                buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
-                sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-                result = {
-                    "rate": rate,
-                    "buy_rate": buy_rate,
-                    "sell_rate": sell_rate,
-                    "commission_percent": COMMISSION_PERCENT,
-                    "currency": currency,
-                    "asset": asset_upper,
-                    "source": "Exchange+CoinGecko"
-                }
+        # 3. For coins — get USDT price from Binance spot
+        usdt_priced_assets = {"SOL": "SOLUSDT", "ETH": "ETHUSDT", "ARB": "ARBUSDT", "BNB": "BNBUSDT"}
+        coin_usdt = None
+        symbol = usdt_priced_assets.get(asset_upper)
+        if not symbol:
+            result = {"error": f"Неизвестный актив {asset_upper}"}
+            _cache[cache_key] = {"val": result, "ts": time.time()}
+            return result
 
-            if not result:
-                result = {"error": f"Не удалось получить курс {asset_upper} для {currency.upper()}"}
-        else:
-            # USDT direct — return USDT/fiat rate
-            if usdt_fiat:
-                rate = usdt_fiat
-                buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
-                sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-                result = {
-                    "rate": rate,
-                    "buy_rate": buy_rate,
-                    "sell_rate": sell_rate,
-                    "commission_percent": COMMISSION_PERCENT,
-                    "currency": currency,
-                    "asset": "USDT",
-                    "source": "CoinGecko"
-                }
+        try:
+            resp = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}', timeout=5)
+            data = resp.json()
+            if 'price' in data:
+                coin_usdt = float(data['price'])
+        except Exception:
+            logger.warning(f"Binance {symbol} failed")
 
-            if not result and currency.upper() == 'RUB':
-                try:
-                    url = 'https://api.rapira.net/open/market/rates_xml'
-                    headers = {'Accept': 'application/xml'}
-                    response = requests.get(url, headers=headers, timeout=5)
-                    response.raise_for_status()
-                    root = ET.fromstring(response.content)
-                    for item in root.findall('item'):
-                        fr_elem = item.find('from')
-                        to_elem = item.find('to')
-                        out_elem = item.find('out')
-                        if fr_elem is not None and to_elem is not None and out_elem is not None:
-                            fr = fr_elem.text
-                            to = to_elem.text
-                            out = out_elem.text
-                            if fr == 'USDT' and to == 'RUB' and out is not None:
-                                rate = float(out)
-                                buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
-                                sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-                                result = {
-                                    "rate": rate,
-                                    "buy_rate": buy_rate,
-                                    "sell_rate": sell_rate,
-                                    "commission_percent": COMMISSION_PERCENT,
-                                    "currency": currency,
-                                    "asset": "USDT",
-                                    "source": "Rapira"
-                                }
-                except Exception:
-                    logger.warning("Rapira API failed")
+        if not coin_usdt:
+            try:
+                resp = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=5)
+                data = resp.json()
+                if data.get('retCode') == 0:
+                    coin_usdt = float(data['result']['list'][0]['lastPrice'])
+            except Exception:
+                logger.warning(f"Bybit {symbol} also failed")
 
-            if not result:
-                hardcoded_rates = {
-                    'RUB': 75.0, 'USD': 1.0, 'EUR': 0.92,
-                    'GBP': 0.79, 'KZT': 450.0
-                }
-                if currency.upper() in hardcoded_rates:
-                    rate = hardcoded_rates[currency.upper()]
-                    buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
-                    sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
-                    result = {
-                        "rate": rate,
-                        "buy_rate": buy_rate,
-                        "sell_rate": sell_rate,
-                        "commission_percent": COMMISSION_PERCENT,
-                        "currency": currency,
-                        "asset": "USDT",
-                        "source": "fallback"
-                    }
+        if not coin_usdt:
+            hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
+            coin_usdt = hardcoded_prices.get(asset_upper)
+            logger.info(f"Using hardcoded price for {asset_upper}: ${coin_usdt}")
 
-            if not result:
-                result = {"error": f"Не удалось получить курс для {currency.upper()}"}
+        rate = round(coin_usdt * usdt_fiat, 6)
+        buy_rate = round(rate * (1 - COMMISSION_PERCENT / 100), 2)
+        sell_rate = round(rate * (1 + COMMISSION_PERCENT / 100), 2)
+        result = {"rate": rate, "buy_rate": buy_rate, "sell_rate": sell_rate, "commission_percent": COMMISSION_PERCENT, "currency": currency, "asset": asset_upper, "source": "Binance+Rapira"}
 
         _cache[cache_key] = {"val": result, "ts": time.time()}
         return result
@@ -1097,6 +1027,10 @@ async def get_asset_price(asset: str = "SOL"):
                     price = float(d["result"]["list"][0]["lastPrice"])
             except Exception:
                 pass
+
+        if not price:
+            hardcoded_prices = {"SOL": 150, "ETH": 1900, "ARB": 0.70, "BNB": 580}
+            price = hardcoded_prices.get(asset_upper)
 
         if price:
             result = {"asset": asset_upper, "price": str(price), "symbol": symbol}
