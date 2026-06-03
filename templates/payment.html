@@ -419,13 +419,13 @@
             <button class="wallet-header-disconnect" onclick="disconnectWallet()">✕</button>
         </div>
         <div class="wallet-networks" id="walletNetworks" style="display:none;">
-            <img src="https://img.phantom.app/PhantomIcon.svg" class="wallet-network-icon" onclick="showNetworkDropdown()" title="Сети" id="networksToggleIcon">
+            <img src="/static/phantom.svg" class="wallet-network-icon" onclick="showNetworkDropdown()" title="Сети" id="networksToggleIcon">
         </div>
         <div class="wallet-networks-dropdown" id="walletNetworksDropdown">
-            <div class="wallet-network-row"><img src="https://img.phantom.app/PhantomIcon.svg" alt="Solana"><span class="net-name">Solana</span><span class="net-balance" id="netBalSol">—</span><span class="net-status" id="netStatusSol">✕</span></div>
-            <div class="wallet-network-row"><img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="Ethereum"><span class="net-name">Ethereum</span><span class="net-balance" id="netBalEth">—</span><span class="net-status" id="netStatusEth">✕</span></div>
-            <div class="wallet-network-row"><img src="https://cryptologos.cc/logos/arbitrum-arb-logo.png" alt="Arbitrum" style="border-radius:0;"><span class="net-name">Arbitrum</span><span class="net-balance" id="netBalArb">—</span><span class="net-status" id="netStatusArb">✕</span></div>
-            <div class="wallet-network-row"><img src="https://cryptologos.cc/logos/bnb-bnb-logo.png" alt="BNB Chain" style="border-radius:0;"><span class="net-name">BNB Chain</span><span class="net-balance" id="netBalBnb">—</span><span class="net-status" id="netStatusBnb">✕</span></div>
+            <div class="wallet-network-row"><img src="/static/phantom.svg" alt="Solana"><span class="net-name">Solana</span><span class="net-balance" id="netBalSol">—</span><span class="net-status" id="netStatusSol">✕</span></div>
+            <div class="wallet-network-row"><img src="/static/metamask.svg" alt="Ethereum"><span class="net-name">Ethereum</span><span class="net-balance" id="netBalEth">—</span><span class="net-status" id="netStatusEth">✕</span></div>
+            <div class="wallet-network-row"><img src="/static/arb-logo.png" alt="Arbitrum" style="border-radius:0;"><span class="net-name">Arbitrum</span><span class="net-balance" id="netBalArb">—</span><span class="net-status" id="netStatusArb">✕</span></div>
+            <div class="wallet-network-row"><img src="/static/bnb-logo.png" alt="BNB Chain" style="border-radius:0;"><span class="net-name">BNB Chain</span><span class="net-balance" id="netBalBnb">—</span><span class="net-status" id="netStatusBnb">✕</span></div>
         </div>
         <div class="wallet-connect-panel" id="walletConnectPanel">
             <img src="/static/wallet-banner.webp" class="wallet-connect-banner" alt="">
@@ -433,7 +433,7 @@
                 <h3>Подключить кошелёк</h3>
                 <p>Выберите способ подключения, чтобы продолжить</p>
                 <div class="wallet-option" onclick="connectPhantom()">
-                    <img src="https://img.phantom.app/PhantomIcon.svg" class="wallet-option-icon" alt="Phantom">
+                    <img src="/static/phantom.svg" class="wallet-option-icon" alt="Phantom">
                     <div class="wallet-option-info">
                         <strong>Phantom</strong>
                         <span>Solana кошелёк</span>
@@ -441,7 +441,7 @@
                     <span class="wallet-option-arrow">→</span>
                 </div>
                 <div class="wallet-option" onclick="connectMetaMask()" style="margin-top:8px;">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" class="wallet-option-icon" alt="MetaMask">
+                    <img src="/static/metamask.svg" class="wallet-option-icon" alt="MetaMask">
                     <div class="wallet-option-info">
                         <strong>MetaMask</strong>
                         <span>Ethereum кошелёк</span>
@@ -987,11 +987,11 @@
 
         function updateAllBalances() {
             const b = {};
-            if (phantomSolBalance !== null) b['SOL'] = { val: phantomSolBalance, unit: 'SOL', icon: 'https://img.phantom.app/PhantomIcon.svg' };
-            if (phantomUsdtBalance !== null) b['USDT'] = { val: phantomUsdtBalance, unit: 'USDT', icon: 'https://cryptologos.cc/logos/tether-usdt-logo.png' };
-            if (metamaskEthBalance !== null) b['ETH'] = { val: metamaskEthBalance, unit: 'ETH', icon: 'https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg' };
-            if (metamaskArbBalance !== null) b['ARB'] = { val: metamaskArbBalance, unit: 'ARB', icon: 'https://cryptologos.cc/logos/arbitrum-arb-logo.png' };
-            if (metamaskBnbBalance !== null) b['BNB'] = { val: metamaskBnbBalance, unit: 'BNB', icon: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' };
+            if (phantomSolBalance !== null) b['SOL'] = { val: phantomSolBalance, unit: 'SOL', icon: '/static/phantom.svg' };
+            if (phantomUsdtBalance !== null) b['USDT'] = { val: phantomUsdtBalance, unit: 'USDT', icon: '/static/usdt-logo.png' };
+            if (metamaskEthBalance !== null) b['ETH'] = { val: metamaskEthBalance, unit: 'ETH', icon: '/static/metamask.svg' };
+            if (metamaskArbBalance !== null) b['ARB'] = { val: metamaskArbBalance, unit: 'ARB', icon: '/static/arb-logo.png' };
+            if (metamaskBnbBalance !== null) b['BNB'] = { val: metamaskBnbBalance, unit: 'BNB', icon: '/static/bnb-logo.png' };
             allBalances = b;
             showPrimaryBalance();
         }
