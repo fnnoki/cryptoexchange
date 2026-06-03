@@ -399,8 +399,8 @@
             } catch (error) { alert('Ошибка обновления'); }
         }
 
-        function startAdminPoll(sessionId) {
-            let lastId = 0;
+        function startAdminPoll(sessionId, initialLastId) {
+            let lastId = initialLastId || 0;
             if (adminPollTimer) clearInterval(adminPollTimer);
             adminPollTimer = setInterval(async () => {
                 try {
@@ -410,15 +410,15 @@
                     msgs.forEach(m => {
                         if (m.sender !== 'admin') {
                             addAdminMessage(m.sender, m.message, m.created_at);
-                        }
-                        if (m.sender === 'client') {
-                            playNotifySound();
-                            loadChatSessions();
+                            if (m.sender === 'client') {
+                                playNotifySound();
+                                loadChatSessions();
+                            }
                         }
                         if (m.id > lastId) lastId = m.id;
                     });
                 } catch(e) {}
-            }, 3000);
+            }, 2000);
         }
 
         function openChatPanel(sessionId, clientName) {
@@ -445,9 +445,10 @@
                 })
                 .catch(() => {});
 
-            loadChatMessages(sessionId);
+            loadChatMessages(sessionId).then(maxId => {
+                startAdminPoll(sessionId, maxId);
+            });
             connectAdminWs(sessionId);
-            startAdminPoll(sessionId);
         }
 
         function closeChatPanel() {
@@ -464,22 +465,25 @@
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 const messages = await response.json();
-                renderChatMessages(messages);
-            } catch (e) { console.error(e); }
+                return renderChatMessages(messages);
+            } catch (e) { console.error(e); return 0; }
         }
 
         function renderChatMessages(messages) {
             const container = document.getElementById('chatPanelMsgs');
+            let maxId = 0;
             if (messages.length === 0) {
                 container.innerHTML = '<div class="empty">Нет сообщений. Напишите клиенту ответ.</div>';
             } else {
                 container.innerHTML = '';
                 messages.forEach(m => {
                     addAdminMessage(m.sender, m.message, m.created_at);
+                    if (m.id > maxId) maxId = m.id;
                 });
             }
             document.getElementById('chatPanelInput').style.display = 'flex';
             document.getElementById('quickReplies').style.display = 'flex';
+            return maxId;
         }
 
         function addAdminMessage(sender, text, timeStr) {

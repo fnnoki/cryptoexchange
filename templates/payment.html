@@ -1505,18 +1505,18 @@
                 const r = await fetch(`/api/chat/poll/${sessionId}?since_id=0`);
                 const msgs = await r.json();
                 document.getElementById('chatWidgetMsgs').innerHTML = '';
+                let maxId = 0;
                 msgs.forEach(m => {
                     addWidgetMsg(m.sender, m.message, m.created_at);
+                    if (m.id > maxId) maxId = m.id;
                 });
-            } catch(e) {}
+                return maxId;
+            } catch(e) { return 0; }
         }
 
-        function startWidgetPoll(sessionId) {
-            let lastId = 0;
+        function startWidgetPoll(sessionId, initialLastId) {
+            let lastId = initialLastId || 0;
             if (widgetPollTimer) clearInterval(widgetPollTimer);
-            // Get last displayed message ID from the DOM
-            const msgs = document.querySelectorAll('#chatWidgetMsgs .chat-widget-msg');
-            lastId = msgs.length;
             widgetPollTimer = setInterval(async () => {
                 try {
                     const r = await fetch(`/api/chat/poll/${sessionId}?since_id=${lastId}`);
@@ -1553,11 +1553,8 @@
                 widgetSessionId = data.session_id;
                 document.getElementById('chatWidgetStart').innerHTML = '';
                 document.getElementById('chatWidgetInput').style.display = 'flex';
-                // Load all existing messages
-                await loadWidgetMessages(widgetSessionId);
-                // Start HTTP polling for new messages
-                startWidgetPoll(widgetSessionId);
-                // Try WebSocket for real-time (optional, fail silently)
+                const maxId = await loadWidgetMessages(widgetSessionId);
+                startWidgetPoll(widgetSessionId, maxId);
                 try {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const host = window.location.host || 'localhost:8000';
