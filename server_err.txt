@@ -1,8 +1,0 @@
-INFO:__main__:TRON_SEED set: True
-INFO:__main__:TRON_PRIVATE_KEY set: True
-INFO:__main__:TRON_ADDRESS set: True
-INFO:__main__:SOLANA_SEED set: True
-INFO:     Started server process [10908]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
