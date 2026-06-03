@@ -1547,7 +1547,7 @@ async def get_chat_messages(session_id: int, db: Session = Depends(get_db), _=De
         "created_at": m.created_at.isoformat()
     } for m in msgs]
 
-@app.patch("/api/chat/close/{session_id}")
+@app.post("/api/chat/close/{session_id}")
 async def close_chat_session(session_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:

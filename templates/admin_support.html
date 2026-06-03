@@ -476,6 +476,9 @@
                     fetch('/api/chat/read/' + sessionId, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + checkAuth() } }).catch(()=>{});
                     if (s && s.status === 'closed') {
                         document.getElementById('chatPanelInput').style.display = 'none';
+                    } else if (s) {
+                        document.getElementById('chatPanelInput').style.display = 'flex';
+                        document.getElementById('quickReplies').style.display = 'flex';
                     }
                 })
                 .catch(() => {});
@@ -500,20 +503,25 @@
             const isBlocked = btn.classList.contains('unblock');
             const token = checkAuth();
             try {
+                const url = isBlocked ? '/api/chat/unblock' : '/api/chat/block';
+                const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify({wallet: currentWallet, reason: 'Заблокирован администратором'}) });
+                if (!r.ok) {
+                    const err = await r.text();
+                    alert('Ошибка: ' + err);
+                    return;
+                }
                 if (isBlocked) {
-                    await fetch('/api/chat/unblock', { method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify({wallet: currentWallet}) });
                     btn.textContent = 'Блок';
                     btn.className = 'block-btn';
                     addAdminMessage('admin', '✅ Кошелек разблокирован');
                 } else {
-                    await fetch('/api/chat/block', { method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify({wallet: currentWallet, reason: 'Заблокирован администратором'}) });
                     btn.textContent = 'Разблок.';
                     btn.className = 'block-btn unblock';
                     addAdminMessage('admin', '🚫 Кошелек заблокирован');
                     document.getElementById('chatPanelInput').style.display = 'none';
                 }
                 loadChatSessions();
-            } catch(e) { alert('Ошибка'); }
+            } catch(e) { alert('Ошибка сети: ' + e.message); }
         }
 
         async function loadChatMessages(sessionId) {
@@ -539,8 +547,6 @@
                     if (m.id > maxId) maxId = m.id;
                 });
             }
-            document.getElementById('chatPanelInput').style.display = 'flex';
-            document.getElementById('quickReplies').style.display = 'flex';
             return maxId;
         }
 
@@ -609,15 +615,20 @@
             if (!currentChatId) return;
             try {
                 const token = checkAuth();
-                await fetch('/api/chat/close/' + currentChatId, {
-                    method: 'PATCH',
+                const r = await fetch('/api/chat/close/' + currentChatId, {
+                    method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
+                if (!r.ok) {
+                    const err = await r.text();
+                    alert('Ошибка закрытия: ' + err);
+                    return;
+                }
                 document.getElementById('chatPanelInput').style.display = 'none';
                 document.querySelector('.close-chat-btn').disabled = true;
                 addAdminMessage('admin', '⚠️ Чат закрыт администратором');
                 loadChatSessions();
-            } catch (e) { alert('Ошибка'); }
+            } catch (e) { alert('Ошибка сети: ' + e.message); }
         }
 
         async function markRead(sessionId) {
