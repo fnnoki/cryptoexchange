@@ -244,10 +244,24 @@ TRONGRID_API = "https://api.trongrid.io"
 SOLANA_RPC = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 USDT_TRC20_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
 
-def fetch_coin_usdt(symbol: str) -> float | None:
-    """Fetch coin price in USDT via multi-exchange chain. Symbol like SOLUSDT"""
+COINGECKO_IDS = {"SOLUSDT": "solana", "ETHUSDT": "ethereum", "ARBUSDT": "arbitrum", "BNBUSDT": "binancecoin"}
+
+def fetch_coin_usdt(symbol: str) -> Optional[float]:
+    """Fetch coin price in USDT via multi-source chain. Symbol like SOLUSDT"""
     dash = symbol.replace("USDT", "-USDT")
     underscore = symbol.replace("USDT", "_USDT")
+
+    # 0. CoinGecko (free, rarely blocks server-side)
+    cg_id = COINGECKO_IDS.get(symbol)
+    if cg_id:
+        try:
+            r = requests.get(f'https://api.coingecko.com/api/v3/simple/price?ids={cg_id}&vs_currencies=usd', timeout=8)
+            d = r.json()
+            price = d.get(cg_id, {}).get("usd")
+            if price:
+                return float(price)
+        except Exception:
+            pass
 
     # 1. Bybit
     try:
@@ -1156,7 +1170,9 @@ async def create_chat_session(request: Request, db: Session = Depends(get_db)):
     try:
         body = await request.json()
 
-        client_ip = request.client.host if request.client else ""
+        # Get real client IP from X-Forwarded-For (Render proxy) or fallback
+        forwarded = request.headers.get("x-forwarded-for", "")
+        client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "")
 
         # Try to get country from IP
         country_code = ""
