@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Оплата USDT</title>
+    <link rel="icon" type="image/webp" href="/static/favicon.webp">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
@@ -1512,13 +1513,18 @@
             try {
                 const chatName = phantomPublicKey ? phantomPublicKey.slice(0,4)+'..'+phantomPublicKey.slice(-4) : 'Клиент';
                 const resp = await fetch('/api/chat/create', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:chatName,email:'',message:''}) });
+                if (!resp.ok) { document.getElementById('chatWidgetStart').innerHTML = '<p style="color:#ef4444;">Ошибка сервера</p>'; return; }
                 const data = await resp.json();
                 widgetSessionId = data.session_id;
                 document.getElementById('chatWidgetMsgs').innerHTML = '';
-                document.getElementById('chatWidgetInput').style.display = 'flex';
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const host = window.location.host || 'localhost:8000';
                 widgetWs = new WebSocket(`${protocol}//${host}/ws/chat/${widgetSessionId}`);
+                widgetWs.onopen = () => {
+                    document.getElementById('chatWidgetInput').style.display = 'flex';
+                    document.getElementById('chatWidgetStart').innerHTML = '';
+                    if (phantomPublicKey) setTimeout(updateChatWalletInfo, 500);
+                };
                 widgetWs.onmessage = (e) => {
                     const d = JSON.parse(e.data);
                     if (d.type === 'message' && d.sender !== 'client') {
@@ -1526,9 +1532,7 @@
                         playNotifySound();
                     } else if (d.type === 'closed') { addWidgetMsg('admin', '⚠️ Чат закрыт'); document.getElementById('chatWidgetInput').style.display = 'none'; }
                 };
-                if (phantomPublicKey) {
-                    setTimeout(updateChatWalletInfo, 500);
-                }
+                widgetWs.onerror = () => { document.getElementById('chatWidgetStart').innerHTML = '<p style="color:#ef4444;">Ошибка WebSocket</p>'; };
             } catch (e) { document.getElementById('chatWidgetStart').innerHTML = '<p style="color:#ef4444;">Ошибка подключения</p>'; }
         }
 

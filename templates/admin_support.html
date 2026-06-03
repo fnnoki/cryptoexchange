@@ -266,9 +266,12 @@
         }
 
         function getFlagEmoji(code) {
-            if (!code || code.length !== 2) return '';
-            return String.fromCodePoint(...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+            if (!code || code.length !== 2) return code || '';
+            try {
+                return String.fromCodePoint(...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+            } catch(e) { return code; }
         }
+        function flagDisplay(code) { const f = getFlagEmoji(code); return f + ' ' + code; }
 
         let notifyAudioCtx = null;
 
@@ -320,8 +323,7 @@
             sessions.forEach(s => {
                 const isActive = s.status === 'active';
                 const time = new Date(s.last_message_time || s.created_at).toLocaleString('ru-RU');
-                const flag = getFlagEmoji(s.country_code);
-                const ipInfo = s.ip_address ? (flag + ' ' + s.ip_address) : '';
+                const ipInfo = s.ip_address ? (flagDisplay(s.country_code) + ' — ' + s.ip_address) : '';
                 html += `
                     <div class="chat-card ${isActive ? 'active' : 'closed'}" onclick="openChatPanel(${s.id}, '${s.client_name}')">
                         <div class="cc-header">
@@ -410,8 +412,7 @@
                 .then(sessions => {
                     const s = sessions.find(x => x.id === sessionId);
                     if (s && s.ip_address) {
-                        const flag = getFlagEmoji(s.country_code);
-                        document.getElementById('chatPanelSub').textContent = 'Session #' + sessionId + ' — ' + flag + ' ' + s.ip_address;
+                        document.getElementById('chatPanelSub').textContent = 'Session #' + sessionId + ' — ' + flagDisplay(s.country_code) + ' — ' + s.ip_address;
                     }
                     // Mark as read
                     fetch('/api/chat/read/' + sessionId, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + checkAuth() } }).catch(()=>{});
@@ -470,6 +471,8 @@
             const host = window.location.host || 'localhost:8000';
             adminWs = new WebSocket(`${protocol}//${host}/ws/chat/${sessionId}?token=${token}`);
 
+            adminWs.onopen = () => { document.getElementById('chatPanelInput').style.display = 'flex'; document.getElementById('quickReplies').style.display = 'flex'; };
+            adminWs.onerror = () => { addAdminMessage('admin', '⚠️ Ошибка WebSocket'); };
             adminWs.onmessage = (e) => {
                 const data = JSON.parse(e.data);
                 if (data.type === 'message') {
@@ -484,8 +487,7 @@
                         // Update IP/country in chat panel header
                         const subEl = document.getElementById('chatPanelSub');
                         if (data.ip_address) {
-                            const flag = getFlagEmoji(data.country_code);
-                            subEl.textContent = 'Session #' + sessionId + ' — ' + flag + ' ' + data.ip_address;
+                            subEl.textContent = 'Session #' + sessionId + ' — ' + flagDisplay(data.country_code) + ' — ' + data.ip_address;
                         }
                     }
                 } else if (data.type === 'closed') {
