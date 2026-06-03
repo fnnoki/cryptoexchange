@@ -450,6 +450,7 @@
             fetch('/api/chat/sessions', { headers: { 'Authorization': 'Bearer ' + checkAuth() } })
                 .then(r => r.json())
                 .then(sessions => {
+                    if (currentChatId !== sessionId) return; // user switched session
                     const s = sessions.find(x => x.id === sessionId);
                     if (s) {
                         let subText = 'Session #' + sessionId;
@@ -504,7 +505,7 @@
             const token = checkAuth();
             try {
                 const url = isBlocked ? '/api/chat/unblock' : '/api/chat/block';
-                const r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify({wallet: currentWallet, reason: 'Заблокирован администратором'}) });
+                let r = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify({wallet: currentWallet, reason: 'Заблокирован администратором'}) });
                 if (!r.ok) {
                     const err = await r.text();
                     alert('Ошибка: ' + err);
@@ -615,10 +616,16 @@
             if (!currentChatId) return;
             try {
                 const token = checkAuth();
-                const r = await fetch('/api/chat/close/' + currentChatId, {
+                let r = await fetch('/api/chat/close/' + currentChatId, {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
+                if (r.status === 405) {
+                    r = await fetch('/api/chat/close/' + currentChatId, {
+                        method: 'PATCH',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                }
                 if (!r.ok) {
                     const err = await r.text();
                     alert('Ошибка закрытия: ' + err);

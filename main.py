@@ -1547,19 +1547,27 @@ async def get_chat_messages(session_id: int, db: Session = Depends(get_db), _=De
         "created_at": m.created_at.isoformat()
     } for m in msgs]
 
+@app.patch("/api/chat/close/{session_id}")
 @app.post("/api/chat/close/{session_id}")
-async def close_chat_session(session_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+async def close_chat_session(session_id: int, request: Request, db: Session = Depends(get_db)):
+    auth = request.headers.get("authorization", "")
+    if not auth or not verify_admin_token(auth.replace("Bearer ", "")):
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
     session.status = "closed"
     db.commit()
     await manager.broadcast(session_id, {"type": "closed"})
+    logger.info(f"Chat session {session_id} closed by admin")
     return {"status": "closed"}
 
 @app.post("/api/chat/block")
-async def block_wallet(request: Request, db: Session = Depends(get_db), _=Depends(require_admin)):
+async def block_wallet(request: Request, db: Session = Depends(get_db)):
     try:
+        auth = request.headers.get("authorization", "")
+        if not auth or not verify_admin_token(auth.replace("Bearer ", "")):
+            raise HTTPException(status_code=401, detail="Требуется авторизация")
         body = await request.json()
         wallet = body.get("wallet", "").strip()
         reason = body.get("reason", "").strip()
@@ -1577,15 +1585,20 @@ async def block_wallet(request: Request, db: Session = Depends(get_db), _=Depend
             s.status = "closed"
             await manager.broadcast(s.id, {"type": "closed"})
         db.commit()
+        logger.info(f"Wallet {wallet} blocked by admin")
         return {"status": "blocked"}
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Block error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/chat/unblock")
-async def unblock_wallet(request: Request, db: Session = Depends(get_db), _=Depends(require_admin)):
+async def unblock_wallet(request: Request, db: Session = Depends(get_db)):
     try:
+        auth = request.headers.get("authorization", "")
+        if not auth or not verify_admin_token(auth.replace("Bearer ", "")):
+            raise HTTPException(status_code=401, detail="Требуется авторизация")
         body = await request.json()
         wallet = body.get("wallet", "").strip()
         if not wallet:
@@ -1594,8 +1607,10 @@ async def unblock_wallet(request: Request, db: Session = Depends(get_db), _=Depe
         if blocked:
             db.delete(blocked)
             db.commit()
+        logger.info(f"Wallet {wallet} unblocked by admin")
         return {"status": "unblocked"}
     except Exception as e:
+        logger.error(f"Unblock error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/chat/blocked")
