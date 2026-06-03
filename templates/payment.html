@@ -322,11 +322,12 @@
         }
         .wallet-header-disconnect:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.1); }
         .wallet-header-account {
-            display: inline-flex; align-items: center; margin-left: 4px;
-            text-decoration: none; color: inherit;
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-left: 4px; width: 28px; height: 28px;
+            text-decoration: none; color: #fff;
+            background: #000; border-radius: 6px;
         }
-        .wallet-header-account svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
-        .wallet-header-account:hover { opacity: 0.7; }
+        .wallet-header-account svg { width: 12px; height: 12px; stroke: none; fill: #fff; }
         .wallet-header-error {
             position: absolute; top: 100%; right: 0; margin-top: 4px;
             color: #ef4444; font-size: 11px; white-space: nowrap; display: none;
@@ -415,7 +416,7 @@
                 <div class="wallet-header-balance" id="walletHeaderBalance" onclick="toggleBalanceDropdown()">— SOL</div>
                 <div class="wallet-balance-dropdown" id="walletBalanceDropdown"></div>
             </div>
-            <a href="/account" class="wallet-header-account" title="Личный кабинет"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></a>
+            <a href="/account" class="wallet-header-account" title="Личный кабинет"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></a>
             <button class="wallet-header-disconnect" onclick="disconnectWallet()">✕</button>
         </div>
         <div class="wallet-networks" id="walletNetworks" style="display:none;">
