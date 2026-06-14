@@ -287,16 +287,7 @@ def fetch_coin_usdt(symbol: str) -> Optional[float]:
     except Exception:
         pass
 
-    # 2. Bybit — accessible from Russia
-    try:
-        r = requests.get(f'https://api.bybit.com/v5/market/tickers?category=spot&symbol={symbol}', timeout=5)
-        d = r.json()
-        if d.get('retCode') == 0:
-            return float(d['result']['list'][0]['lastPrice'])
-    except Exception:
-        pass
-
-    # 3. KuCoin — accessible from Russia
+    # 2. KuCoin — accessible from Russia
     try:
         r = requests.get(f'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={dash}', timeout=5)
         d = r.json()
