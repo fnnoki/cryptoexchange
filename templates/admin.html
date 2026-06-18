@@ -411,17 +411,18 @@
             
             let totalUsdt = 0;
             let totalRub = 0;
+            let totalCommission = 0;
             for (let i = 0; i < filtered.length; i++) {
                 if (filtered[i].status === 'paid') {
                     totalUsdt += filtered[i].amount_usdt;
                     if (filtered[i].amount_rub) totalRub += filtered[i].amount_rub;
+                    if (filtered[i].commission_amount) totalCommission += filtered[i].commission_amount;
                 }
             }
-            const commission = totalRub * 0.03;
             
             document.getElementById('totalUsdt').textContent = totalUsdt.toFixed(2) + ' USDT';
             document.getElementById('totalRub').textContent = totalRub.toFixed(2) + ' ₽';
-            document.getElementById('totalCommission').textContent = commission.toFixed(2) + ' ₽';
+            document.getElementById('totalCommission').textContent = totalCommission.toFixed(2) + ' ₽';
         }
         
         async function updateStatus(orderId, newStatus) {
