@@ -387,7 +387,7 @@
                     '<td><strong>' + order.order_id + '</strong></td>' +
                     '<td>' + dateStr + '<br><small>' + timeStr + '</small></td>' +
                     '<td><span class="status-badge ' + orderTypeClass + '">' + orderTypeText + '</span></td>' +
-                    '<td><strong>' + order.amount_usdt + '</strong> USDT</td>' +
+                    '<td><strong>' + order.amount_usdt + '</strong> ' + (order.asset_type || 'USDT') + '</td>' +
                     '<td>' + rubAmount + '</td>' +
                     '<td>' + (order.currency || 'RUB') + '</td>' +
                     '<td>' + order.bank + '</td>' +
