@@ -580,7 +580,7 @@ try:
                   commission_percent=3.0, commission_amount=7.5,
                   currency="RUB", bank="Сбербанк", phone="+7 903 222 33 44",
                   deposit_address="0x4K8J3p2QmR7vW1nL5tY6cB0fA2dE3gH6i",
-                  status="cancelled", order_type="buy", asset_type="ETH",
+                  status="canceled", order_type="buy", asset_type="ETH",
                   wallet="0x9x4K8J3p2QmR7vW1nL5tY6cB0fA2dE3gH6i"),
             Order(order_id="N3O4P5Q6", created_at=datetime.now()-timedelta(hours=18),
                   amount_usdt=100.0, amount_rub=7564.0, rate_at_creation=75.64,
@@ -601,7 +601,7 @@ try:
                   commission_percent=3.0, commission_amount=15.0,
                   currency="RUB", bank="Сбербанк", phone="+7 926 111 22 33",
                   deposit_address="SOLp2QmR7vW1nL5tY6cB0fA2dE3gH6i9x4",
-                  status="cancelled", order_type="sell", asset_type="SOL",
+                  status="canceled", order_type="sell", asset_type="SOL",
                   wallet="R7vW1nL5tY6cB0fA2dE3gH6i9x4K8J3p2Qm"),
         ]
         for o in demo_orders:
